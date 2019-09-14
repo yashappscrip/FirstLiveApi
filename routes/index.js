@@ -1,6 +1,7 @@
 const express = require('express');
 const app = express();
 const dbConfig = require('../config/db');
+const jwt = require('jsonwebtoken');
 // var mp = require('mongodb-promise');
 var bcrypt = require('bcrypt-nodejs');
 const bodyParser = require('body-parser');
@@ -82,6 +83,7 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
             });
         });
     });
+    var token;
     app.post('/login',async (req,res,next)=>{
         var user = req.body.user;
         var userPwd = req.body.pwd;
@@ -93,13 +95,14 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
         };
         validation().then().catch((err)=>{
             res.status(400).json({
-                response:err
+                response:"Bad input"
             });
             return;
         });
         const findDocument = {
             userName:user
         };
+        token = jwt.sign({findDocument},'secretKey');
         try {
             let returnData = await collection.findOne(findDocument);
             if(returnData && returnData._id){
@@ -112,8 +115,10 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
                 }
                 var dbPwd= returnData.password;
                 if(checkPwd(userPwd,dbPwd)){
+                    // res.set('Authorization','Bearer '+token);
                     res.json({
-                        "response":"Success"
+                        "response":"Success",
+                        token:token
                     });
                 }
                 else{
@@ -131,16 +136,33 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
             console.log(error);
         }
     });
-    app.get('/details',async (req,res,next)=>{
-        var user = req.query.user;
-        try {
-            let userData =await collection.findOne({userName:user},{projection:{password:0}})
-            console.log("Request");
-            res.json(userData);
-        } catch (error) {
-            console.log(error);     
+    app.get('/details',ensureToken, async (req,res,next)=>{
+         jwt.verify(req.token,'secretKey',(err,data)=>{
+            if(err){
+                res.status(403).json({response:"Authorization failed"});
+            }else{
+                var user = data.findDocument.userName;
+                // var userFront = req.body.user;    
+                try {
+                    collection.findOne({userName:user},{projection:{password:0}},(err,data)=>{
+                        res.json(data);
+                    });
+                } catch (error) {
+                    console.log(error);     
+                }
+            }
+        });
+    });
+    function ensureToken(req,res,next){
+        const headerToken = req.headers["authorization"];
+        if(typeof headerToken !=='undefined'){
+            // const bearer = bearerHeader.split(" ");
+            // const bearerToken = bearer[1];
+            req.token = headerToken;
+            next();
+        } else{
+            res.sendStatus(403);
         }
-      
-    }); 
+    }
 });
 module.exports=app;
