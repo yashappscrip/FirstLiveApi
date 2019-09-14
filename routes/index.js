@@ -1,5 +1,6 @@
 const express = require('express');
 const app = express();
+require('dotenv/config');
 const dbConfig = require('../config/db');
 const jwt = require('jsonwebtoken');
 // var mp = require('mongodb-promise');
@@ -102,7 +103,7 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
         const findDocument = {
             userName:user
         };
-        token = jwt.sign({findDocument},'secretKey');
+        token = jwt.sign({findDocument},process.env.SECRET_TOKEN);
         try {
             let returnData = await collection.findOne(findDocument);
             if(returnData && returnData._id){
@@ -118,7 +119,8 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
                     // res.set('Authorization','Bearer '+token);
                     res.json({
                         "response":"Success",
-                        token:token
+                        token:token,
+                        secret:process.env.SECRET_TOKEN
                     });
                 }
                 else{
@@ -137,7 +139,7 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
         }
     });
     app.get('/details',ensureToken, async (req,res,next)=>{
-         jwt.verify(req.token,'secretKey',(err,data)=>{
+         jwt.verify(req.token,process.env.SECRET_TOKEN,(err,data)=>{
             if(err){
                 res.status(403).json({response:"Authorization failed"});
             }else{
