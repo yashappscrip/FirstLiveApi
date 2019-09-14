@@ -14,7 +14,9 @@
     "mongodb-promise": "0.0.4",
     "nodemon": "^1.19.2"
   },
-  "devDependencies": {},
+  "devDependencies": {
+    "@types/dotenv": "^6.1.1"
+  },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
