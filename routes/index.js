@@ -1,17 +1,34 @@
+/**
+ * Developed using express js
+ * 
+ */
 const express = require('express');
 const { check, validationResult } = require('express-validator');
-// var expressValidator = require('express-validator');
 const app = express();
-// const cookieParser = require('cookie-parser');
+/**
+ *  Session for storing and validating JWT token
+ * 
+ */
 const session = require('express-session');
+/**
+ * environment variables for stroring and accessing confedential information
+ * 
+ */
 require('dotenv/config');
+/**
+ * Getting database configuration
+ * 
+ */
 const dbConfig = require('../config/db');
+/**
+ * JSON web token
+ * 
+ */
 const jwt = require('jsonwebtoken');
 var bcrypt = require('bcrypt-nodejs');
 const bodyParser = require('body-parser');
 app.use(bodyParser.urlencoded({extended:true}));
 app.use(bodyParser.json());
-// app.use(expressValidator());
 var errorLog = (res,err,errCode)=>{
     res.status(errCode).json(err);
 };
