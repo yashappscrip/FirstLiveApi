@@ -1,13 +1,28 @@
 const express = require('express');
+const { check, validationResult } = require('express-validator');
+// var expressValidator = require('express-validator');
 const app = express();
+// const cookieParser = require('cookie-parser');
+const session = require('express-session');
 require('dotenv/config');
 const dbConfig = require('../config/db');
 const jwt = require('jsonwebtoken');
-// var mp = require('mongodb-promise');
 var bcrypt = require('bcrypt-nodejs');
 const bodyParser = require('body-parser');
 app.use(bodyParser.urlencoded({extended:true}));
 app.use(bodyParser.json());
+// app.use(expressValidator());
+var errorLog = (res,err,errCode)=>{
+    res.status(errCode).json(err);
+};
+app.use(session({
+    secret:process.env.SESSIONSECRET,
+    saveUninitialized:false,
+    resave:true,
+    cookie:{
+        maxAge:60000
+    }
+}));
 var MongoClient = require('mongodb').MongoClient;
 MongoClient.connect(dbConfig.db,(err,client)=>{
     const collection = client.db("user").collection("details");
@@ -25,22 +40,12 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
         var pwd = req.body.pwd;
         let validation = ()=>{
             return new Promise((resolve,reject)=>{
-                if(user.length==0 || fullName.length==0 || phoneNo.length==0|| pwd.length==0 || typeof user !='string' || !isNaN(parseInt(fullName)) || isNaN(parseInt(phoneNo)) || typeof user=='undefined' || typeof fullName=='undefined' || typeof phoneNo=='undefined' || typeof pwd=='undefined'){
-                    // reject("UserLength:"+user.length + "NameLength:" +fullName.length + "PhoneLength:" + phoneNo.length + "PasswordLength:" + pwd.length + "User type:" + typeof user + "Name type:" + typeof fullName + "Phone type:" + typeof phoneNo + "User type: " + typeof user +"Name type:"+ typeof fullName +"Phone type: "+ typeof phoneNo + "Password type:" + typeof pwd);
-                    // console.log("ERROR!");
-                    // throw new Error("All fields are mandatory");
-                    reject("Bad Input");
-                }
-                else{
-                    resolve("Perfect!");
-                }
+                if(user.length==0 || fullName.length==0 || phoneNo.length==0|| pwd.length==0 || typeof user !='string' || !isNaN(parseInt(fullName)) || isNaN(parseInt(phoneNo)) || typeof user=='undefined' || typeof fullName=='undefined' || typeof phoneNo=='undefined' || typeof pwd=='undefined') reject("Bad Input");
+                else resolve("Perfect!");
             });
         };
         validation().then(()=>{}).catch((err)=>{
-            // console.log("-----")
-            res.status(400).json({
-                response : err
-            });
+            errorLog(res,{response:err},400);
             return;
         });
     //     let backValidationUser =()=>{
@@ -61,12 +66,10 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
 
     let item= await collection.findOne({userName:user})
     if(item){
-        return res.json({res:"some error"}).status(500)
+        return errorLog(res,{response:"some error"},500);
     }
-        console.log("dsddas")
-        var encryptedPassword = (pwd)=>{
+       var encryptedPassword = (pwd)=>{
             return pwd;
-            // return bcrypt.hashSync(pwd, bcrypt.genSaltSync(8), null);
         }
         var insert={
             "userName":user,
@@ -75,19 +78,32 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
             "password":encryptedPassword(pwd)
         };
         collection.insert(insert).then(()=>{
-            res.json({
+            errorLog(res,{
                 "Response":"Details Inserted"
-            });
+            },200);
         }).catch((err)=>{
-            res.status(500).json({
+            errorLog(res,{
                 response : err
-            });
+            },500);
         });
     });
     var token;
     app.post('/login',async (req,res,next)=>{
         var user = req.body.user;
         var userPwd = req.body.pwd;
+        var params = req.params;
+        var query = req.query;
+        var resultQuery = Object.keys(query).map(function(key) {
+            return [Number(key), query[key]];
+          });
+        var resultParams = Object.keys(params).map(function(key) {
+        return [Number(key), params[key]];
+        });
+        if(typeof resultParams[0]!='undefined' || typeof resultQuery[0]!='undefined'){
+            return errorLog(res,{
+                response: "Bad input!"
+            },400)
+        }
         let validation = ()=>{
             return new Promise((resolve,reject)=>{
                 if(user.length ==0 || userPwd.length == 0 || typeof user !='string') reject("Bad input");
@@ -95,10 +111,9 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
             });
         };
         validation().then().catch((err)=>{
-            res.status(400).json({
+            return errorLog(res,{
                 response:"Bad input"
-            });
-            return;
+            },400);
         });
         const findDocument = {
             userName:user
@@ -108,31 +123,27 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
             let returnData = await collection.findOne(findDocument);
             if(returnData && returnData._id){
                 const checkPwd = (userPwd,dbPwd)=>{
-                    // return bcrypt.compareSync(pwd, userPwd);
-                    // var userPwdEnc= bcrypt.hashSync(userPwd, bcrypt.genSaltSync(8), null);
-                    if(dbPwd==userPwd)
-                    return true;
+                    if(dbPwd==userPwd) return true;
                     else return false;
                 }
                 var dbPwd= returnData.password;
                 if(checkPwd(userPwd,dbPwd)){
-                    // res.set('Authorization','Bearer '+token);
-                    res.json({
-                        "response":"Success",
-                        token:token,
-                        secret:process.env.SECRET_TOKEN
-                    });
+                    req.session.token=token;
+                    return errorLog(res,{
+                        response:"Success",
+                        token:token
+                    },200);
                 }
                 else{
-                    res.json({
-                        "response":"Authentication failed"
-                    });
+                    return errorLog(res,{
+                        response:"Authentication failed"
+                    },401);
                 }
             }
             else{
-                res.json({
-                    "response":"User not registered !"
-                });
+                return errorLog(res,{
+                    response:"User not registered !"
+                },401);
             }
         } catch (error) {
             console.log(error);
@@ -141,13 +152,18 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
     app.get('/details',ensureToken, async (req,res,next)=>{
          jwt.verify(req.token,process.env.SECRET_TOKEN,(err,data)=>{
             if(err){
-                res.status(403).json({response:"Authorization failed"});
+                return errorLog(res,{
+                    response:"Authorization failed !"
+                },401);
             }else{
                 var user = data.findDocument.userName;
                 // var userFront = req.body.user;    
                 try {
                     collection.findOne({userName:user},{projection:{password:0}},(err,data)=>{
-                        res.json(data);
+                        return errorLog(res,{
+                            data
+                        },200); 
+                        // res.json(data);
                     });
                 } catch (error) {
                     console.log(error);     
@@ -158,13 +174,31 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
     function ensureToken(req,res,next){
         const headerToken = req.headers["authorization"];
         if(typeof headerToken !=='undefined'){
-            // const bearer = bearerHeader.split(" ");
-            // const bearerToken = bearer[1];
-            req.token = headerToken;
-            next();
-        } else{
-            res.sendStatus(403);
+            if(req.session.token){
+                if(headerToken==req.session.token){
+                    grantAccess(req,headerToken,next);
+                    return; 
+                }
+                else{
+                    return errorLog(res,{
+                        response:"Token not valid !"
+                    },401);
+                }
+            }
+            else{
+                grantAccess(req,headerToken,next);
+                return;
+            }
+        } 
+        else{
+            return errorLog(res,{
+                response:"Token missing !"
+            },401);
         }
+    }
+    async function grantAccess(req,headerToken,next){
+        req.token = headerToken;
+        next();
     }
 });
 module.exports=app;
