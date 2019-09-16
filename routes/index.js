@@ -34,6 +34,11 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
         res.send("Connected!");
     });
     app.post('/register',async (req,res,next)=>{
+        let countBody = Object.keys(req.body).length;
+        let countQuery = Object.keys(req.query).length;
+        if(countBody!==4 || countQuery>0) return errorLog(res,{
+            response:"Bad input !"
+        },400);
         var user = req.body.user;
         var fullName = req.body.name;
         var phoneNo = req.body.phone;
@@ -64,9 +69,11 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
         
     //   backValidationUser().then((item)=>{}).catch((err)=>{return res.status(500).json({response2:err});});
 
-    let item= await collection.findOne({userName:user})
+    // let item= await collection.findOne({userName:user,phoneNo:phoneNo})
+    let item= await collection.findOne({$or:[{userName:user},{phoneNo:phoneNo}]});
     if(item){
-        return errorLog(res,{response:"some error"},500);
+        if(item.username==user || item.phoneNo==phoneNo)
+        return errorLog(res,{response:"Duplicate entry"},500);
     }
        var encryptedPassword = (pwd)=>{
             return pwd;
@@ -93,16 +100,14 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
         var userPwd = req.body.pwd;
         var params = req.params;
         var query = req.query;
-        var resultQuery = Object.keys(query).map(function(key) {
-            return [Number(key), query[key]];
-          });
-        var resultParams = Object.keys(params).map(function(key) {
-        return [Number(key), params[key]];
-        });
-        if(typeof resultParams[0]!='undefined' || typeof resultQuery[0]!='undefined'){
+        var countQuery = Object.keys(query).length;
+        var countParams = Object.keys(params).length;
+        var countBody = Object.keys(req.body).length;
+        if(countBody>2 || typeof user==='undefined' || typeof userPwd ==='undefined') return errorLog(res,{"Response":"Bad input!"},400);
+            if(countQuery>0 || countParams>0){
             return errorLog(res,{
                 response: "Bad input!"
-            },400)
+            },400);
         }
         let validation = ()=>{
             return new Promise((resolve,reject)=>{
@@ -150,6 +155,13 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
         }
     });
     app.get('/details',ensureToken, async (req,res,next)=>{
+        var countBody = Object.keys(req.body).length;
+        var countHeaders = Object.keys(req.headers).length;
+        var countQuery = Object.keys(req.query).length;
+        // console.log(countHeaders);
+        if(countBody>0 || countQuery>0 ||countHeaders!==9) return errorLog(res,{
+            response :"Bad input!"
+        },400);
          jwt.verify(req.token,process.env.SECRET_TOKEN,(err,data)=>{
             if(err){
                 return errorLog(res,{
@@ -157,13 +169,11 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
                 },401);
             }else{
                 var user = data.findDocument.userName;
-                // var userFront = req.body.user;    
                 try {
                     collection.findOne({userName:user},{projection:{password:0}},(err,data)=>{
                         return errorLog(res,{
                             data
-                        },200); 
-                        // res.json(data);
+                        },200);
                     });
                 } catch (error) {
                     console.log(error);     
