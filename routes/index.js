@@ -25,7 +25,15 @@ const dbConfig = require('../config/db');
  * 
  */
 const jwt = require('jsonwebtoken');
+/**
+ * Password encryption
+ * 
+ */
 var bcrypt = require('bcrypt-nodejs');
+/**
+ * Body parser middleware
+ * 
+ */
 const bodyParser = require('body-parser');
 app.use(bodyParser.urlencoded({extended:true}));
 app.use(bodyParser.json());
@@ -40,16 +48,32 @@ app.use(session({
         maxAge:60000
     }
 }));
+/**
+ * Mongodb client module
+ * 
+ */
 var MongoClient = require('mongodb').MongoClient;
+/**
+ * Mongodb connection
+ * 
+ */
 MongoClient.connect(dbConfig.db,(err,client)=>{
     const collection = client.db("user").collection("details");
     if(err){
         console.log(err);
         return 0;
     }
+    /**
+     * GET root Routing
+     * 
+     */
     app.get('/',(req,res)=>{
         res.send("Connected!");
     });
+    /**
+     * POST Register Routing
+     * 
+     */
     app.post('/register',async (req,res,next)=>{
         let countBody = Object.keys(req.body).length;
         let countQuery = Object.keys(req.query).length;
@@ -60,12 +84,20 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
         var fullName = req.body.name;
         var phoneNo = req.body.phone;
         var pwd = req.body.pwd;
+        /**
+         * User defined Promise
+         * 
+         */
         let validation = ()=>{
             return new Promise((resolve,reject)=>{
                 if(user.length==0 || fullName.length==0 || phoneNo.length==0|| pwd.length==0 || typeof user !='string' || !isNaN(parseInt(fullName)) || isNaN(parseInt(phoneNo)) || typeof user=='undefined' || typeof fullName=='undefined' || typeof phoneNo=='undefined' || typeof pwd=='undefined') reject("Bad Input");
                 else resolve("Perfect!");
             });
         };
+        /**
+         *  Implementation of then and catch.
+         * 
+         */
         validation().then(()=>{}).catch((err)=>{
             errorLog(res,{response:err},400);
             return;
@@ -87,6 +119,10 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
     //   backValidationUser().then((item)=>{}).catch((err)=>{return res.status(500).json({response2:err});});
 
     // let item= await collection.findOne({userName:user,phoneNo:phoneNo})
+    /**
+     *  Implementation of await and async
+     * 
+     */
     let item= await collection.findOne({$or:[{userName:user},{phoneNo:phoneNo}]});
     if(item){
         if(item.username==user || item.phoneNo==phoneNo)
@@ -112,6 +148,10 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
         });
     });
     var token;
+    /**
+     *  POST method for login
+     * 
+     */
     app.post('/login',async (req,res,next)=>{
         var user = req.body.user;
         var userPwd = req.body.pwd;
@@ -140,6 +180,10 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
         const findDocument = {
             userName:user
         };
+        /**
+         * jwt token implementation
+         * 
+         */
         token = jwt.sign({findDocument},process.env.SECRET_TOKEN);
         try {
             let returnData = await collection.findOne(findDocument);
@@ -171,6 +215,10 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
             console.log(error);
         }
     });
+    /**
+     * GET method for fetching details of the user with the middleware function ensureToken 
+     * 
+     */
     app.get('/details',ensureToken, async (req,res,next)=>{
         var countBody = Object.keys(req.body).length;
         var countHeaders = Object.keys(req.headers).length;
@@ -187,6 +235,10 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
             }else{
                 var user = data.findDocument.userName;
                 try {
+                    /**
+                     * find method for fetching details fromo Mongodb
+                     * 
+                     */
                     collection.findOne({userName:user},{projection:{password:0}},(err,data)=>{
                         return errorLog(res,{
                             data
