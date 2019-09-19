@@ -25,3 +25,10 @@ db.getCollection('details').find({age:{$in:[20,21]}});
 db.getCollection('details').aggregate([{$match:{$and:[{gender:"female"},{eyeColor:"green"}]}}]);
 db.getCollection('details').aggregate([{$match:{$or:[{gender:"female"},{eyeColor:"green"}],$and:[{gender:"female"},{eyeColor:"blue"}]}}]);
 db.getCollection('details').aggregate([{$match:{$and:[{$and:[{gender:"female"},{name:"Kitty Snow"}]},{eyeColor:"blue"}]}}]);
+db.getCollection('employee1').aggregate([{"$addFields":{"convertedId":{"$toString":"$_id"}}},{$lookup:{
+    from:"employee2",
+    localField:"convertedId",
+    foreignField:"emp_id",
+    as:
+    "emp_details"
+    }}]);

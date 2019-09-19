@@ -84,6 +84,10 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
         var fullName = req.body.name;
         var phoneNo = req.body.phone;
         var pwd = req.body.pwd;
+        let userNameValidation = require('../regex');
+        if(!userNameValidation(user)) return errorLog(res,{
+            response:"User name not valid!"
+        },400);
         /**
          * User defined Promise
          * 
@@ -123,10 +127,14 @@ MongoClient.connect(dbConfig.db,(err,client)=>{
      *  Implementation of await and async
      * 
      */
-    let item= await collection.findOne({$or:[{userName:user},{phoneNo:phoneNo}]});
+    var item = await collection.findOne({ $or: [{ userName: user.toLowerCase() }, { phoneNo: phoneNo }] });
+    // console.log(item);
+    // return res.send(item);
     if(item){
-        if(item.username==user || item.phoneNo==phoneNo)
-        return errorLog(res,{response:"Duplicate entry"},500);
+        if(item.userName==user.toLowerCase())
+        return errorLog(res,{response:"Error!",message:"User already exists"},400);
+        else if(item.phoneNo==phoneNo)
+        return errorLog(res,{response:"Error!",message:"Phone No already exists"},400);
     }
        var encryptedPassword = (pwd)=>{
             return pwd;
